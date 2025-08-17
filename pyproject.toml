@@ -9,7 +9,7 @@ description = "Toy collision-avoidance prototype: TLE/SGP4 screening, refinement
 readme = "README.md"
 requires-python = ">=3.10"
 license = { text = "MIT" }
-# authors = [{ name = "Your Name", email = "you@example.com" }]  # optional
+authors = [{ name = "Anastasiia Ershova", email = "vveyzaa@gmail.com" }] 
 
 # Base runtime dependencies (what a normal user needs)
 dependencies = [
