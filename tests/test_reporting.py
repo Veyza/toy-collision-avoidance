@@ -1,3 +1,12 @@
+"""
+Tests for the reporting module.
+
+Covers:
+- Generation of CSV/HTML artifacts from refined conjunction data.
+- Ensures figures and tables are saved in expected locations.
+- Verifies consistency of output filenames and columns.
+"""
+
 from pathlib import Path
 import pandas as pd
 from ca_proto.reporting import build_report

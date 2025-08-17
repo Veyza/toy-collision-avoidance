@@ -1,3 +1,12 @@
+"""
+Tests for coarse conjunction screening.
+
+Covers:
+- Pairwise distance computation between satellites.
+- Detection of candidate close approaches within a screening threshold.
+- Sorting and output structure of screening results.
+"""
+
 import numpy as np
 import pandas as pd
 from ca_proto.screening import coarse_screen

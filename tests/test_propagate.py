@@ -1,3 +1,12 @@
+"""
+Tests for orbit propagation utilities.
+
+Covers:
+- Propagation of TLEs into time series of positions and velocities.
+- Time window handling and shape of resulting DataFrames.
+- Basic validation of state vectors (dimensions, units).
+"""
+
 from ca_proto.tle_io import load_tles
 from ca_proto.propagate import propagate_group
 

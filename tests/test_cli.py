@@ -1,3 +1,12 @@
+"""
+Smoke tests for the command-line interface.
+
+Covers:
+- Top-level commands (--help, --version).
+- Subcommand availability and usage messages.
+- Argument validation (e.g. required inputs, time window order).
+"""
+
 import sys
 import subprocess
 from pathlib import Path

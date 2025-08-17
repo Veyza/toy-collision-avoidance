@@ -1,3 +1,12 @@
+"""
+Tests for conjunction refinement.
+
+Covers:
+- Refined closest-approach search with interpolation/upsampling.
+- Correct identification of TCA (time of closest approach).
+- Handling of relative motion and distance minimization.
+"""
+
 import numpy as np
 import pandas as pd
 from ca_proto.refine import refine_pair

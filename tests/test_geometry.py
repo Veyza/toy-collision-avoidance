@@ -1,3 +1,12 @@
+"""
+Tests the low-level geometry utilities by creating a toy scenario:
+- Satellite A fixed at the origin.
+- Satellite B moving along the x-axis towards A.
+Checks that:
+  • Positions are correctly extracted into arrays.
+  • The pairwise minimum distance is found at the right time index.
+  • The minimum distance value matches the expected 2 km.
+"""
 import numpy as np
 import pandas as pd
 from ca_proto.geometry import _extract_positions, pairwise_min_distance
