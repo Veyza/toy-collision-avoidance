@@ -3,7 +3,12 @@ from pathlib import Path
 
 from .config import Defaults
 from .timeutil import parse_iso_utc
-from .tle_io import load_tles, fetch_celestrak_group, save_text
+from .tle_io import (
+    load_tles,
+    fetch_celestrak_group,
+    save_text,
+    sample_tles,   # ← this must be present
+)
 from .propagate import propagate_group
 from .screening import coarse_screen
 from .refine import refine_candidates
