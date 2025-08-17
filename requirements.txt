@@ -1,0 +1,9 @@
+sgp4
+numpy
+pandas
+scipy
+plotly
+kaleido
+pytest
+ruff
+black
