@@ -81,6 +81,13 @@ def run_dashboard(artifacts_dir: str, host: str = "127.0.0.1", port: int = 8050)
 
     # Load refined candidates and pre-build dropdown options
     refined_df, options = _pairs_from_refined(refined_csv)
+    # Ensure numeric types (avoid string-compare filtering)
+    for col in ("dca_km", "vrel_kms"):
+        if col in refined_df.columns:
+            refined_df[col] = pd.to_numeric(refined_df[col], errors="coerce")
+    # Drop rows missing DCA (optional; or keep and they’ll be filtered out)
+    refined_df = refined_df.dropna(subset=["dca_km"]).reset_index(drop=True)
+
 
     # Initialize Dash app
     app = Dash(__name__)
@@ -89,7 +96,43 @@ def run_dashboard(artifacts_dir: str, host: str = "127.0.0.1", port: int = 8050)
     # ---------- Layout ----------
     app.layout = html.Div([
         html.H2("Collision Avoidance Prototype — Results Browser"),
+        # ---- Filter controls + results table ----
+        html.Div([
+            dcc.Input(
+                id="pair-search",
+                type="text",
+                placeholder="Search satellite name...",
+                style={"marginRight": "12px", "width": "280px"}
+            ),
+            html.Span("Max DCA (km):", style={"marginRight": "8px"}),
+            dcc.Slider(
+                id="dca-max",
+                min=0, max=300, step=10, value=150,
+                marks=None,
+                tooltip={"placement": "bottom"}
+            ),
+        ], style={"margin": "8px 0 10px 0"}),
+        html.Div(id="pairs-count", style={"color":"#666", "marginBottom":"6px"}),
 
+        dash_table.DataTable(
+            id="pairs-table",
+            columns=[
+                {"name": "A", "id": "a"},
+                {"name": "B", "id": "b"},
+                {"name": "TCA (UTC)", "id": "tca_utc"},
+                {"name": "DCA (km)", "id": "dca_km", "type": "numeric"},
+                {"name": "Vrel (km/s)", "id": "vrel_kms", "type": "numeric"},
+                # hidden token used to sync selection with dropdown
+                {"name": "_token", "id": "_token", "presentation": "markdown", "hidden": True},
+            ],
+            data=[],                # filled by callback
+            page_size=10,
+            sort_action="native",
+            filter_action="none",
+            row_selectable="single",
+            style_table={"overflowX": "auto"},
+            style_cell={"padding": "6px"},
+        ),
         # Dropdown selector for candidate pair
         html.Div([
             html.Label("Pair:"),
@@ -151,6 +194,38 @@ def run_dashboard(artifacts_dir: str, host: str = "127.0.0.1", port: int = 8050)
         # Hidden store: holds absolute artifacts dir path for callbacks
         dcc.Store(id="artifacts-dir", data=str(artifacts.resolve())),
     ], style={"maxWidth": "1100px", "margin": "24px auto"})
+    
+    # --- Helper: filter refined_df by search text and DCA cap ---
+    def _filter_pairs(df: pd.DataFrame, search: str | None, dca_cap: float | None) -> pd.DataFrame:
+        out = df.copy()
+
+        # Coerce types defensively (handles older artifact sets)
+        if "dca_km" in out.columns:
+            out["dca_km"] = pd.to_numeric(out["dca_km"], errors="coerce")
+        if "vrel_kms" in out.columns:
+            out["vrel_kms"] = pd.to_numeric(out["vrel_kms"], errors="coerce")
+
+        # Text filter on a/b
+        s = (search or "").strip().lower()
+        if s:
+            mask = out["a"].astype(str).str.lower().str.contains(s) | out["b"].astype(str).str.lower().str.contains(s)
+            out = out[mask]
+
+        # DCA cap
+        if dca_cap is not None:
+            try:
+                cap = float(dca_cap)
+                out = out[out["dca_km"] <= cap]
+            except Exception:
+                pass
+
+        # Build token for selection driving the dropdown
+        out = out.assign(_token=(out["a"].astype(str) + "||" + out["b"].astype(str)))
+
+        # Stable sort for nicer UX
+        return out.sort_values(["dca_km", "tca_utc"]).reset_index(drop=True)
+
+
 
     # ---------- Callbacks ----------
 
@@ -348,7 +423,43 @@ def run_dashboard(artifacts_dir: str, host: str = "127.0.0.1", port: int = 8050)
             style={"fontSize":"13px", "color":"#555", "marginTop":"6px"}
         ))
         return cards
-
+        
+        
+    @app.callback(
+        Output("pairs-table", "data"),
+        Input("pair-search", "value"),
+        Input("dca-max", "value"),
+        prevent_initial_call=False,
+    )
+    def update_pairs_table(search_value, dca_cap):
+        df_show = _filter_pairs(refined_df, search_value, dca_cap)
+        return df_show.to_dict("records")
+    @app.callback(
+        Output("pair-dropdown", "value"),
+        Input("pairs-table", "derived_viewport_data"),
+        Input("pairs-table", "selected_rows"),
+        prevent_initial_call=True,
+    )
+    def table_selects_dropdown(view_data, selected_rows):
+        # If a row is selected, use it; otherwise pick first visible row (if any)
+        if not view_data:
+            return dash.no_update
+        if selected_rows and len(selected_rows) > 0:
+            idx = int(selected_rows[0])
+            if 0 <= idx < len(view_data) and "_token" in view_data[idx]:
+                return view_data[idx]["_token"]
+        # fallback: first row in current view
+        if "_token" in view_data[0]:
+            return view_data[0]["_token"]
+        return dash.no_update
+    
+    @app.callback(
+        Output("pairs-count", "children"),
+        Input("pairs-table", "data"),
+    )
+    def _show_count(rows):
+        n = len(rows or [])
+        return f"{n} pair(s) shown"
     # ---------- Run server ----------
     # Dash >= 3 uses app.run; older versions use app.run_server
     try:
@@ -357,4 +468,7 @@ def run_dashboard(artifacts_dir: str, host: str = "127.0.0.1", port: int = 8050)
     except AttributeError:
         # Very old versions fallback
         app.run_server(host=host, port=port, debug=False)
+        
+
+
 
