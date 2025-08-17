@@ -29,7 +29,7 @@ def time_grid(start_iso: str, end_iso: str, step_s: float):
     # all in UTC timezone.
     return pd.date_range(
         t0, t1,
-        freq=f"{int(step_s)}S",  # step as whole seconds
+        freq=f"{int(step_s)}s",  # step as whole seconds
         inclusive="both",        # include both start and end in the range
         tz="UTC"                 # ensure UTC timezone
     )
