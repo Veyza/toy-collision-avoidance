@@ -14,8 +14,15 @@ def main():
         description="Collision Avoidance Prototype — CLI"
     )
     sub = parser.add_subparsers(dest="cmd", required=False)
+    parser.add_argument("--version", action="store_true", help="Show version and exit")
     
     s = sub.add_parser("screen", help="Propagate & coarse-screen pairs by min grid distance")
+    p = sub.add_parser("propagate", help="Propagate TLEs and write CSVs (Hour 2 smoke test)")
+    r = sub.add_parser("refine", help="Propagate, coarse-screen, then refine TCA locally")
+    rep = sub.add_parser("report", help="Propagate, screen, refine, and build a full report with plots")
+
+    args = parser.parse_args()
+    
     s.add_argument("--tles", required=True, help="Path to TLE file")
     s.add_argument("--start", required=True, help="Start time ISO, e.g. 2025-08-16T00:00:00Z")
     s.add_argument("--end", required=True, help="End time ISO")
@@ -24,20 +31,13 @@ def main():
     s.add_argument("--out", required=True, help="Output CSV path")
     s.set_defaults(func=cmd_screen)
 
-    parser.add_argument("--version", action="store_true", help="Show version and exit")
-
-    # NEW: propagate command for smoke test
-    p = sub.add_parser("propagate", help="Propagate TLEs and write CSVs (Hour 2 smoke test)")
     p.add_argument("--tles", required=True, help="Path to TLE file")
     p.add_argument("--start", required=True, help="Start time ISO, e.g. 2025-08-16T00:00:00Z")
     p.add_argument("--end", required=True, help="End time ISO")
     p.add_argument("--step", type=float, default=Defaults.step_s, help="Step in seconds")
     p.add_argument("--out", required=True, help="Output directory (CSV files)")
     p.set_defaults(func=cmd_propagate)
-
-    args = parser.parse_args()
     
-    r = sub.add_parser("refine", help="Propagate, coarse-screen, then refine TCA locally")
     r.add_argument("--tles", required=True, help="Path to TLE file")
     r.add_argument("--start", required=True, help="Start time ISO, e.g. 2025-08-16T00:00:00Z")
     r.add_argument("--end", required=True, help="End time ISO")
@@ -48,7 +48,6 @@ def main():
     r.add_argument("--out", required=True, help="Output CSV path for refined results")
     r.set_defaults(func=cmd_refine)
 
-    rep = sub.add_parser("report", help="Propagate, screen, refine, and build a full report with plots")
     rep.add_argument("--tles", required=True, help="Path to TLE file")
     rep.add_argument("--start", required=True, help="Start time ISO, e.g. 2025-08-16T00:00:00Z")
     rep.add_argument("--end", required=True, help="End time ISO")
