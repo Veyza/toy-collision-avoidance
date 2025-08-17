@@ -98,6 +98,15 @@ def run_dashboard(artifacts_dir: str, host: str = "127.0.0.1", port: int = 8050)
 
         # Distance vs time figure
         dcc.Graph(id="dist-graph"),
+        html.Div([
+            html.B("Note: "),
+            html.Span(
+                "The red dot marks the refined TCA (time of closest approach). "
+                "It uses the refined timing but is placed by interpolation on the coarse distance curve. "
+                "Therefore it does not necessarily coincide with the apparent minimum of the blue line, "
+                "which is sampled at discrete coarse steps."
+            )
+        ], style={"fontSize": "15px", "color": "#444", "marginBottom": "20px"}),
 
         # Embedded 3D HTML
         html.H4("3D Relative Trajectory"),
@@ -106,6 +115,13 @@ def run_dashboard(artifacts_dir: str, host: str = "127.0.0.1", port: int = 8050)
             src="",
             style={"width": "100%", "height": "500px", "border": "1px solid #ccc"}
         ),
+        html.Div([
+            html.B("Note: "),
+            html.Span(
+                "This 3D plot shows the relative trajectory of satellite A with respect to B in the TEME (True Equator, Mean Equinox) frame. "
+                "It is not Earth-fixed, so the orientation does not match ground geography but illustrates the relative motion."
+            )
+        ], style={"fontSize": "15px", "color": "#444", "marginBottom": "24px"}),
 
         # Hidden store: holds absolute artifacts dir path for callbacks
         dcc.Store(id="artifacts-dir", data=str(artifacts.resolve())),
@@ -115,7 +131,7 @@ def run_dashboard(artifacts_dir: str, host: str = "127.0.0.1", port: int = 8050)
     @app.callback(
         Output("metrics", "children"),
         Output("dist-graph", "figure"),
-        Output("rel3d-frame", "src"),
+        Output("rel3d-frame", "srcDoc"),  # embed HTML via srcDoc instead of src
         Input("pair-dropdown", "value"),
         State("artifacts-dir", "data"),
         prevent_initial_call=False,  # run once on load
@@ -150,9 +166,10 @@ def run_dashboard(artifacts_dir: str, host: str = "127.0.0.1", port: int = 8050)
 
         # Build distance-vs-time figure from CSV artifact (if exists)
         dist_csv = _distance_csv_path(Path(artifacts_root), a, b)
-        fig = go.Figure()
+        fig = go.Figure()  # <-- fixed indentation here
         if dist_csv.exists():
             df = pd.read_csv(dist_csv)
+            # main line
             fig.add_trace(go.Scatter(
                 x=pd.to_datetime(df["time_utc"]),
                 y=df["distance_km"],
@@ -160,33 +177,59 @@ def run_dashboard(artifacts_dir: str, host: str = "127.0.0.1", port: int = 8050)
                 name="Distance (km)",
                 line=dict(width=3)
             ))
+
+             # add a CA marker using refined time; compute y by interpolating on the plotted series
+            if not row.empty:
+                r = row.iloc[0]
+                t_min = pd.to_datetime(r["tca_utc"])
+
+                # Interpolate the distance at the refined time on the plotted series
+                ts = pd.to_datetime(df["time_utc"])
+                ys = df["distance_km"].to_numpy()
+
+                # Convert times to int64 ns for robust interpolation
+                t_ns = ts.astype("int64").to_numpy()
+                t_ref_ns = t_min.value
+
+                # Clamp to range to avoid NaN if refined time is slightly outside the window
+                t_ref_ns = max(int(t_ns.min()), min(int(t_ns.max()), int(t_ref_ns)))
+
+                # Linear interpolation (matches the straight-line segments Plotly draws)
+                import numpy as np
+                y_ref = float(np.interp(t_ref_ns, t_ns, ys))
+
+                fig.add_trace(go.Scatter(
+                    x=[pd.to_datetime(t_ref_ns)],
+                    y=[y_ref],
+                    mode="markers",
+                    name=f"Grid min<br>{t_min.strftime('%Y-%m-%d %H:%M:%S')}"
+                ))
+
             fig.update_layout(
                 title=f"Separation vs Time — {str(a).strip()} vs {str(b).strip()}",
                 xaxis_title="Time (UTC)",
                 yaxis_title="Separation (km)",
                 font=dict(size=14),
                 legend=dict(font=dict(size=12)),
+                showlegend=True,  # <- force legend visible
                 margin=dict(l=60, r=20, t=60, b=60),
             )
-            fig.update_xaxes(
-                tickfont=dict(size=12),
-                title_font=dict(size=14),
-                title_standoff=25
-            )
-            fig.update_yaxes(
-                tickfont=dict(size=12),
-                title_font=dict(size=14),
-                title_standoff=30
-            )
+            fig.update_xaxes(tickfont=dict(size=12), title_font=dict(size=14), title_standoff=25)
+            fig.update_yaxes(tickfont=dict(size=12), title_font=dict(size=14), title_standoff=30)
 
-        # Link 3D iframe to HTML artifact (local file path → file:// URI)
+        # Link 3D iframe to HTML artifact by embedding file content (srcDoc)
         rel_html = _rel3d_html_path(Path(artifacts_root), a, b)
-        rel_src = rel_html.resolve().as_uri() if rel_html.exists() else ""
+        rel_srcdoc = ""
+        if rel_html.exists():
+            try:
+                rel_srcdoc = rel_html.read_text(encoding="utf-8")
+            except Exception:
+                rel_srcdoc = "<p>Could not read 3D HTML file.</p>"
 
-        return metrics, fig, rel_src
+        return metrics, fig, rel_srcdoc
 
     # ---------- Run server ----------
-   # Dash >= 3 uses app.run; older versions use app.run_server
+    # Dash >= 3 uses app.run; older versions use app.run_server
     try:
         run = getattr(app, "run", None) or getattr(app, "run_server")
         run(host=host, port=port, debug=False)
