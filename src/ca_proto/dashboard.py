@@ -3,8 +3,16 @@ from typing import Dict
 import json
 import pandas as pd
 import plotly.graph_objects as go
+
+# ✅ import dash primitives
 from dash import Dash, dcc, html, Input, Output, State
+from dash import dash_table  # NEW (you can use later for the pairs table)
 import dash
+
+import numpy as np  # NEW (used in minor checks)
+
+from .dv_planner import plan_dv_for_refined  # NEW
+
 
 def _pairs_from_refined(refined_csv: Path):
     """
@@ -96,8 +104,24 @@ def run_dashboard(artifacts_dir: str, host: str = "127.0.0.1", port: int = 8050)
         # Metrics panel (TCA, DCA, vrel)
         html.Div(id="metrics", style={"marginBottom": "16px", "fontSize": "16px"}),
 
+        # --- Δv sandbox controls (toy heuristic) ---
+        html.H4("Δv sandbox (toy heuristic)"),
+        html.Div([
+            html.Label("Plan time (UTC)"),
+            dcc.Input(id="dv-plan-time", type="text", value="", placeholder="e.g. 2025-08-17T00:30:00Z"),
+            html.Label("Target DCA (km)", style={"marginLeft":"16px"}),
+            dcc.Input(id="dv-target-km", type="number", value=2.0, step=0.1),
+            html.Label("Max |Δv| (m/s)", style={"marginLeft":"16px"}),
+            dcc.Input(id="dv-max-mps", type="number", value=0.05, step=0.01),
+            html.Button("Compute", id="dv-run", n_clicks=0, style={"marginLeft":"16px"}),
+        ], style={"display":"flex","alignItems":"center","gap":"8px","marginBottom":"10px"}),
+
+        # Where DV suggestions will render (cards)
+        html.Div(id="dv-results", style={"display":"flex","gap":"10px","flexWrap":"wrap","marginBottom":"16px"}),
+
         # Distance vs time figure
         dcc.Graph(id="dist-graph"),
+
         html.Div([
             html.B("Note: "),
             html.Span(
@@ -112,7 +136,8 @@ def run_dashboard(artifacts_dir: str, host: str = "127.0.0.1", port: int = 8050)
         html.H4("3D Relative Trajectory"),
         html.Iframe(
             id="rel3d-frame",
-            src="",
+            # Use srcDoc to embed HTML content directly (avoid file:// blocking)
+            srcDoc="",
             style={"width": "100%", "height": "500px", "border": "1px solid #ccc"}
         ),
         html.Div([
@@ -128,15 +153,17 @@ def run_dashboard(artifacts_dir: str, host: str = "127.0.0.1", port: int = 8050)
     ], style={"maxWidth": "1100px", "margin": "24px auto"})
 
     # ---------- Callbacks ----------
+
     @app.callback(
         Output("metrics", "children"),
         Output("dist-graph", "figure"),
         Output("rel3d-frame", "srcDoc"),  # embed HTML via srcDoc instead of src
         Input("pair-dropdown", "value"),
         State("artifacts-dir", "data"),
-        prevent_initial_call=False,  # run once on load
+        State("dv-target-km", "value"),   # for target line overlay
+        prevent_initial_call=False,        # run once on load
     )
-    def update_outputs(pair_value, artifacts_root):
+    def update_outputs(pair_value, artifacts_root, target_dca_km):
         """
         Update metrics panel, distance-vs-time plot, and 3D iframe when
         user selects a satellite pair from dropdown.
@@ -166,7 +193,7 @@ def run_dashboard(artifacts_dir: str, host: str = "127.0.0.1", port: int = 8050)
 
         # Build distance-vs-time figure from CSV artifact (if exists)
         dist_csv = _distance_csv_path(Path(artifacts_root), a, b)
-        fig = go.Figure()  # <-- fixed indentation here
+        fig = go.Figure()
         if dist_csv.exists():
             df = pd.read_csv(dist_csv)
             # main line
@@ -178,7 +205,7 @@ def run_dashboard(artifacts_dir: str, host: str = "127.0.0.1", port: int = 8050)
                 line=dict(width=3)
             ))
 
-             # add a CA marker using refined time; compute y by interpolating on the plotted series
+            # add a CA marker using refined time; compute y by interpolating on the plotted series
             if not row.empty:
                 r = row.iloc[0]
                 t_min = pd.to_datetime(r["tca_utc"])
@@ -195,7 +222,6 @@ def run_dashboard(artifacts_dir: str, host: str = "127.0.0.1", port: int = 8050)
                 t_ref_ns = max(int(t_ns.min()), min(int(t_ns.max()), int(t_ref_ns)))
 
                 # Linear interpolation (matches the straight-line segments Plotly draws)
-                import numpy as np
                 y_ref = float(np.interp(t_ref_ns, t_ns, ys))
 
                 fig.add_trace(go.Scatter(
@@ -211,11 +237,23 @@ def run_dashboard(artifacts_dir: str, host: str = "127.0.0.1", port: int = 8050)
                 yaxis_title="Separation (km)",
                 font=dict(size=14),
                 legend=dict(font=dict(size=12)),
-                showlegend=True,  # <- force legend visible
+                showlegend=True,  # force legend visible
                 margin=dict(l=60, r=20, t=60, b=60),
             )
             fig.update_xaxes(tickfont=dict(size=12), title_font=dict(size=14), title_standoff=25)
             fig.update_yaxes(tickfont=dict(size=12), title_font=dict(size=14), title_standoff=30)
+
+            # Optional target DCA overlay line (if user provided a number)
+            try:
+                if target_dca_km is not None and float(target_dca_km) > 0:
+                    fig.add_hline(
+                        y=float(target_dca_km),
+                        line_dash="dot",
+                        annotation_text="Target DCA",
+                        annotation_position="top right"
+                    )
+            except Exception:
+                pass
 
         # Link 3D iframe to HTML artifact by embedding file content (srcDoc)
         rel_html = _rel3d_html_path(Path(artifacts_root), a, b)
@@ -227,6 +265,89 @@ def run_dashboard(artifacts_dir: str, host: str = "127.0.0.1", port: int = 8050)
                 rel_srcdoc = "<p>Could not read 3D HTML file.</p>"
 
         return metrics, fig, rel_srcdoc
+
+    # --- DV sandbox: helper to render a card ---
+    def _dv_card(row: dict) -> html.Div:
+        """Render one small card for a DV suggestion row."""
+        direction = "prograde" if float(row["suggested_dv_mps"]) > 0 else "retrograde"
+        return html.Div([
+            html.B(f"Actor {str(row['actor']).upper()} — {direction}"),
+            html.Div(f"Δv: {float(row['suggested_dv_mps']):.3f} m/s"),
+            html.Div(f"Δt: {float(row['dt_to_tca_s']):.1f} s"),
+            html.Div(f"Achieved DCA: {float(row['achieved_dca_km']):.3f} km"),
+        ], style={"border":"1px solid #ddd","padding":"10px","borderRadius":"10px","width":"260px"})
+
+    @app.callback(
+        Output("dv-results", "children"),
+        Input("dv-run", "n_clicks"),
+        State("pair-dropdown", "value"),
+        State("dv-plan-time", "value"),
+        State("dv-target-km", "value"),
+        State("dv-max-mps", "value"),
+        prevent_initial_call=True,
+    )
+    def run_dv_sandbox(n_clicks, pair_value, plan_time, target_km, max_dv):
+        """
+        Compute Δv suggestions for the currently selected pair using the toy heuristic.
+        - If plan_time is empty, default to 'now' in UTC.
+        """
+        if not n_clicks or not pair_value:
+            return []
+
+        # Build a one-row refined_df for the selected pair
+        a, b = pair_value.split("||", 1)
+        try:
+            r = refined_df[
+                ((refined_df["a"] == a) & (refined_df["b"] == b)) |
+                ((refined_df["a"] == b) & (refined_df["b"] == a))
+            ].iloc[0]
+        except Exception:
+            return [html.Div("No refined row for the selected pair.", style={"color":"#a00"})]
+
+        # Default plan time: now (UTC) if not provided
+        if not plan_time or not str(plan_time).strip():
+            plan_time = pd.Timestamp.utcnow().replace(microsecond=0).isoformat() + "Z"
+
+        # Defaults / coercions
+        try:
+            target_km = float(target_km) if target_km is not None else 2.0
+            max_dv = float(max_dv) if max_dv is not None else 0.05
+        except Exception:
+            return [html.Div("Invalid DV parameters (target/max).", style={"color":"#a00"})]
+
+        # Build a tiny refined_df for the planner
+        refined_one = pd.DataFrame([{
+            "a": str(r["a"]),
+            "b": str(r["b"]),
+            "tca_utc": str(r["tca_utc"]),
+            "dca_km": float(r["dca_km"]),
+            "vrel_kms": float(r["vrel_kms"]),
+            "t_index": int(r.get("t_index", 0)),
+            "t_idx_refined": int(r.get("t_idx_refined", -1)),
+        }])
+
+        # Run the existing planner
+        dv_df = plan_dv_for_refined(
+            refined_df=refined_one,
+            plan_time_iso=str(plan_time),
+            target_dca_km=target_km,
+            max_dv_mps=max_dv,
+        )
+
+        if dv_df.empty:
+            return [html.Div("Plan time is after TCA — no suggestions.", style={"color":"#a00"})]
+
+        # Render cards: actor A and B, both directions
+        cards = []
+        for _, row in dv_df.iterrows():
+            cards.append(_dv_card(row))
+
+        # Add a small disclaimer under the cards
+        cards.append(html.Div(
+            "Note: Δs≈Δv·Δt; toy along-track heuristic only (no covariance / orbital element control).",
+            style={"fontSize":"13px", "color":"#555", "marginTop":"6px"}
+        ))
+        return cards
 
     # ---------- Run server ----------
     # Dash >= 3 uses app.run; older versions use app.run_server
