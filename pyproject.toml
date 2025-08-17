@@ -18,3 +18,29 @@ package-dir = {"" = "src"}
 [tool.setuptools.packages.find]
 where = ["src"]
 
+[project]
+# name = "ca-proto"
+# version = "0.1.0"
+# ... your existing fields ...
+dependencies = [
+  "numpy",
+  "pandas",
+  "sgp4",
+  "requests",
+  "plotly",
+  "kaleido",
+  "dash",
+]
+
+[project.optional-dependencies]
+dev = [
+  "pytest",
+  "numpy",
+  "pandas",
+  "sgp4",
+  "requests",
+  "plotly",   # core plotting
+  "kaleido",  # PNG export for Plotly
+  "dash",     # dashboard
+]
+
