@@ -25,15 +25,15 @@ Main features:
 ## Installation
 
 Clone the repository and install in editable mode:
-
+```bash
 git clone https://github.com/<your-org>/toy-collision-avoidance.git
 cd toy-collision-avoidance
 pip install -e .
-
+```
 For development:
-
+```bash
 pip install -r requirements.txt
-
+```
 
 ## Version
 To check the installed version:
