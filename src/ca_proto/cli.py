@@ -12,6 +12,8 @@ from .screening import coarse_screen
 from .refine import refine_candidates
 from .reporting import build_report
 from .dashboard import run_dashboard
+from .dv_planner import plan_dv_for_refined
+
 
 def _parse_window_or_die(start: str, end: str) -> None:
     """
@@ -110,6 +112,22 @@ def cmd_dashboard(args):
     run_dashboard(args.artifacts, host=args.host, port=args.port)
 
 
+def cmd_dvplan(args):
+    import pandas as pd
+    refined = pd.read_csv(args.refined)
+    if refined.empty:
+        raise SystemExit("No refined pairs found in CSV.")
+    out = plan_dv_for_refined(
+        refined, plan_time_iso=args.plan_time,
+        target_dca_km=args.target_dca_km,
+        max_dv_mps=args.max_dv_mps,
+    )
+    out_path = Path(args.out)
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    out.to_csv(out_path, index=False)
+    print(f"Wrote {len(out)} DV suggestion(s) to {out_path}")
+
+
 def main():
     examples = """Examples:
   # Propagate and write per-satellite CSV states
@@ -197,6 +215,16 @@ def main():
     dashp.add_argument("--host", default="127.0.0.1")
     dashp.add_argument("--port", type=int, default=8050)
     dashp.set_defaults(func=cmd_dashboard)
+    
+    # Delta-v
+    dv = sub.add_parser("dvplan", help="Generate Δv suggestions for refined results (toy along-track heuristic)")
+    dv.add_argument("--refined", required=True, help="Path to refined.csv (from 'report' or 'refine')")
+    dv.add_argument("--plan-time", required=True, help="Plan time ISO (UTC) to execute the burn, e.g., 2025-08-17T00:30:00Z")
+    dv.add_argument("--target-dca-km", type=float, default=2.0, help="Desired along-track separation at TCA (km)")
+    dv.add_argument("--max-dv-mps", type=float, default=0.05, help="Cap absolute Δv magnitude (m/s)")
+    dv.add_argument("--out", required=True, help="Output CSV for suggestions")
+    dv.set_defaults(func=cmd_dvplan)
+
 
     args = parser.parse_args()
 
