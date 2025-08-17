@@ -1,30 +1,33 @@
 [build-system]
-requires = ["setuptools>=61"]
+requires = ["setuptools>=61", "wheel"]
 build-backend = "setuptools.build_meta"
 
-# pyproject.toml
 [project]
 name = "ca-proto"
 version = "0.1.0"
-dev = [
-  "pytest",
+description = "Toy collision-avoidance prototype: TLE/SGP4 screening, refinement, reporting, dashboard"
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+# authors = [{ name = "Your Name", email = "you@example.com" }]  # optional
+
+# Base runtime dependencies (what a normal user needs)
+dependencies = [
   "numpy",
   "pandas",
   "sgp4",
   "requests",
-  "plotly",   # core plotting
-  "kaleido",  # PNG export for Plotly
-  "dash",     # dashboard
+  "plotly",
+  "kaleido",
+  "dash",
 ]
 
-
-description = "Toy collision avoidance prototype"
-readme = "README.md"
-requires-python = ">=3.10"
-dependencies = []
-
-[tool.setuptools]
-package-dir = {"" = "src"}
+[project.optional-dependencies]
+# Dev extras (what CI uses with `.[dev]`)
+dev = [
+  "pytest",
+  "pytest-cov",
+]
 
 [tool.setuptools.packages.find]
 where = ["src"]
