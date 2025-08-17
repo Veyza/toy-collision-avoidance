@@ -26,9 +26,14 @@ Main features:
 
 Clone the repository and install in editable mode:
 ```bash
-git clone https://github.com/<your-org>/toy-collision-avoidance.git
+git clone https://github.com/Veyza/toy-collision-avoidance.git
 cd toy-collision-avoidance
 pip install -e .
+```
+Make sure the required environment exists. If it doesn't, create and activate it:
+```bash
+python3 -m venv .venv
+source .venv/bin/activate
 ```
 For development:
 ```bash
