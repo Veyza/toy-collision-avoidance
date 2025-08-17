@@ -13,6 +13,8 @@ from .propagate import propagate_group
 from .screening import coarse_screen
 from .refine import refine_candidates
 from .reporting import build_report
+from .dashboard import run_dashboard
+
 
 
 def cmd_propagate(args):
@@ -93,6 +95,10 @@ def cmd_fetch(args):
     print(f"Saved {args.group} TLEs to {args.out}")
 
 
+def cmd_dashboard(args):
+    run_dashboard(args.artifacts, host=args.host, port=args.port)
+
+
 def main():
     parser = argparse.ArgumentParser(
         prog="ca_proto",
@@ -156,6 +162,12 @@ def main():
     f.add_argument("--out", required=True, help="Path to write TLEs (e.g., data/starlink.tle)")
     f.add_argument("--sample", type=int, default=None, help="Randomly sample N satellites from the TLE file")
     f.set_defaults(func=cmd_fetch)
+    
+    dashp = sub.add_parser("dashboard", help="Launch a local dashboard for an artifacts directory")
+    dashp.add_argument("--artifacts", required=True, help="Path to artifacts directory (contains refined.csv)")
+    dashp.add_argument("--host", default="127.0.0.1")
+    dashp.add_argument("--port", type=int, default=8050)
+    dashp.set_defaults(func=cmd_dashboard)
 
 
     args = parser.parse_args()

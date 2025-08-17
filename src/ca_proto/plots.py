@@ -192,4 +192,17 @@ def rel3d_html(states: Dict[str, pd.DataFrame], a: str, b: str, idx_hint: int, o
     fig.write_html(str(fname), include_plotlyjs="cdn")
     return fname
 
+def save_distance_csv(states: Dict[str, pd.DataFrame], a: str, b: str, idx_hint: int, outdir: Path, half_steps: int = 10) -> Path:
+    """
+    Save the local-window distance-vs-time series as CSV for interactive use in the dashboard.
+    Columns: time_utc, distance_km
+    """
+    outdir.mkdir(parents=True, exist_ok=True)
+    df_a = states[a]; df_b = states[b]
+    dfw_a, dfw_b = _window_slice(df_a, df_b, idx_hint, half_steps)
+    s = _distance_series(dfw_a, dfw_b)
+    df = pd.DataFrame({"time_utc": s.index.astype(str), "distance_km": s.values})
+    fname = outdir / f"dist_{_safe_name(a)}__{_safe_name(b)}.csv"
+    df.to_csv(fname, index=False)
+    return fname
 

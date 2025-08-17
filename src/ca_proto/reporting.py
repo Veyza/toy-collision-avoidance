@@ -2,7 +2,8 @@ from pathlib import Path
 from typing import Dict
 import json
 import pandas as pd
-from .plots import dist_time_plot, rel3d_html
+from .plots import dist_time_plot, rel3d_html, save_distance_csv
+
 
 def build_report(
     states: Dict[str, pd.DataFrame],
@@ -59,6 +60,9 @@ def build_report(
         html = rel3d_html(
             states, a, b, idx_hint=idx, outdir=figdir, half_steps=half_steps
         )
+        csv_path = save_distance_csv(states, a, b, idx_hint=idx, outdir=figdir, half_steps=half_steps)
+    
+
 
         # Collect a machine-friendly record for JSON/Markdown.
         rows.append({
@@ -73,7 +77,8 @@ def build_report(
             # Store artifact paths relative to outdir so the report remains portable.
             "distance_plot": str(png.relative_to(outdir)),
             "rel3d_html": str(html.relative_to(outdir)),
-        })
+            "distance_csv": str(csv_path.relative_to(outdir)),
+            })
 
     # ---------- Write machine-readable summary ----------
     jpath = outdir / "report.json"

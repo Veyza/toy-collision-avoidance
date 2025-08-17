@@ -37,7 +37,7 @@ python -m ca_proto report \
   
 Or run the script:
 ```bash
-examples/run_demo.sh
+examples/run_demo.sh (runs for < 3.5 min)
   
 Outputs (written to artifacts/demo_run/):
 
