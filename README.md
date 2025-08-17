@@ -47,3 +47,5 @@ figures/*.png — distance vs time around TCA (PNG)
 figures/*.html — interactive 3D relative trajectory (HTML)
 
 Sample output from a real run in "examples".
+(The full CSV and many png and html plots are generated at runtime, 
+while the folder "examples" contains only 10-lines-csv and 2 png-plots)
