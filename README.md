@@ -37,14 +37,14 @@ pip install -r requirements.txt
 
 ## Version
 To check the installed version:
-
+```bash
 python -m pip show ca-proto
-
+```
 ## Usage
 Get general help:
-
+```bash
 python -m ca_proto --help
-
+```
 Main subcommands:
 
 fetch — download TLEs from Celestrak
@@ -56,10 +56,11 @@ dashboard — open interactive results dashboard
 ## Example: Starlink Demo Run
 1. Fetch TLEs
 (we don’t commit TLE data files to git)
-
+```bash
 python -m ca_proto fetch --group starlink --out data/starlink.tle
+```
 2. Run analysis
-
+```bash
 python -m ca_proto report \
   --tles data/starlink.tle \
   --sample 120 \
@@ -71,7 +72,7 @@ python -m ca_proto report \
   --upsample 20 \
   --half-steps 10 \
   --outdir artifacts/demo_run
-  
+```
 This writes outputs into artifacts/demo_run/:
 
 refined.csv — refined close approaches (TCA, DCA, relative velocity)
@@ -86,9 +87,9 @@ Sample outputs are included in the examples/ folder.
 (The included CSVs/PNGs are shortened examples; real runs generate more files.)
 
 3. Open the dashboard
-
+```bash
 python -m ca_proto dashboard --artifacts artifacts/demo_run
-
+```
 Then open http://127.0.0.1:8050/ in your browser.
 
 ## Artifacts
