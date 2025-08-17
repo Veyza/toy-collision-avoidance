@@ -7,3 +7,4 @@ kaleido
 pytest
 ruff
 black
+request
