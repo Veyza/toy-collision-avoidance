@@ -1,5 +1,5 @@
 from pathlib import Path
-from typing import Dict
+from typing import Dict, Optional
 import json
 import pandas as pd
 from .plots import dist_time_plot, rel3d_html, save_distance_csv
