@@ -4,6 +4,7 @@ from .tle_io import load_tles
 from .propagate import propagate_group
 from .timeutil import parse_iso_utc
 from .config import Defaults
+from .screening import coarse_screen
 
 def main():
     parser = argparse.ArgumentParser(
@@ -11,6 +12,14 @@ def main():
         description="Collision Avoidance Prototype — CLI"
     )
     sub = parser.add_subparsers(dest="cmd", required=False)
+    s = sub.add_parser("screen", help="Propagate & coarse-screen pairs by min grid distance")
+    s.add_argument("--tles", required=True, help="Path to TLE file")
+    s.add_argument("--start", required=True, help="Start time ISO, e.g. 2025-08-16T00:00:00Z")
+    s.add_argument("--end", required=True, help="End time ISO")
+    s.add_argument("--step", type=float, default=Defaults.step_s, help="Step in seconds")
+    s.add_argument("--screen-km", type=float, default=10.0, help="Keep pairs with dmin < screen-km")
+    s.add_argument("--out", required=True, help="Output CSV path")
+    s.set_defaults(func=cmd_screen)
 
     parser.add_argument("--version", action="store_true", help="Show version and exit")
 
@@ -46,6 +55,16 @@ def cmd_propagate(args):
         safe = name.replace(" ", "_").replace("/", "_")
         df.to_csv(outdir / f"{safe}.csv", index=False)
     print(f"Wrote {len(states)} CSV file(s) to {outdir}")
+
+def cmd_screen(args):
+    # propagate then screen; write single CSV
+    tles = load_tles(args.tles)
+    states = propagate_group(tles, args.start, args.end, step_s=args.step)
+    df = coarse_screen(states, screen_km=args.screen_km)
+    out_csv = Path(args.out)
+    out_csv.parent.mkdir(parents=True, exist_ok=True)
+    df.to_csv(out_csv, index=False)
+    print(f"Wrote {len(df)} candidate pair(s) to {out_csv}")
 
 if __name__ == "__main__":
     main()
