@@ -76,8 +76,8 @@ def _interp_state(df: pd.DataFrame, t_new: pd.DatetimeIndex) -> Tuple[np.ndarray
     """
     # Express times in seconds relative to t0 for numerical stability
     t0 = df["time"].iloc[0]
-    t_s = (df["time"].view("int64") - t0.value) / 1e9   # coarse grid seconds
-    t_new_s = (t_new.view("int64") - t0.value) / 1e9    # refined grid seconds
+    t_s = (df["time"].astype("int64") - t0.value) / 1e9   # coarse grid seconds
+    t_new_s = (t_new.astype("int64") - t0.value) / 1e9    # refined grid seconds
 
     # Interpolate positions
     rx = _interp_component(t_s, df["rx_km"].to_numpy().astype(float), t_new_s)
@@ -146,7 +146,7 @@ def refine_pair(
 
     # If window collapses (too short time series), fall back to coarse result
     if i1 <= i0:
-        tca = times[idx_hint]
+        tca = times.iloc[idx_hint]
         rel_v = np.array([
             df_a["vx_kms"].iloc[idx_hint] - df_b["vx_kms"].iloc[idx_hint],
             df_a["vy_kms"].iloc[idx_hint] - df_b["vy_kms"].iloc[idx_hint],
@@ -166,16 +166,15 @@ def refine_pair(
         }
 
     # Extract coarse window
-    t_window = times[i0 : i1 + 1]
+    t_window = times.iloc[i0 : i1 + 1]
 
     # Refined time grid: subdivide intervals by `upsample` factor
     if upsample < 2:
         upsample = 2
-    t_fine = pd.date_range(
-        t_window[0], t_window[-1],
-        periods=((len(t_window) - 1) * upsample + 1),
-        tz="UTC"
-    )
+    t_fine = pd.date_range(t_window.iloc[0], 
+                            t_window.iloc[-1], 
+                            periods=((len(t_window) - 1) * upsample + 1), 
+                            tz="UTC")
 
     # Interpolate both satellites to the refined grid
     Ra, Va = _interp_state(df_a, t_fine)
