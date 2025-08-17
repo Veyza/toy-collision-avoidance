@@ -10,7 +10,9 @@ def build_report(
     refined_df: pd.DataFrame,
     outdir: Path,
     half_steps: int = 10,
+    dv_df: Optional[pd.DataFrame] = None,
 ) -> Path:
+
     """
     Assemble a human+machine readable report of refined conjunction candidates.
 
@@ -89,25 +91,25 @@ def build_report(
     mpath = outdir / "report.md"
     with mpath.open("w") as f:
         f.write("# Conjunction Screening — Refined Results\n\n")
-
         if not rows:
-            # No candidates → emit a minimal, explicit note.
             f.write("_No candidate pairs in the selected window._\n")
         else:
-            # Markdown table header
             f.write("| A | B | TCA (UTC) | DCA (km) | Vrel (km/s) | Distance plot | 3D relative |\n")
             f.write("|---|---|-----------:|--------:|------------:|--------------|-------------|\n")
-
-            # One row per pair with links to generated artifacts.
             for r in rows:
-                f.write(
-                    f"| {r['a']} | {r['b']} | {r['tca_utc']} | "
-                    f"{r['dca_km']:.3f} | {r['vrel_kms']:.3f} | "
-                    f"[PNG]({r['distance_plot']}) | [HTML]({r['rel3d_html']}) |\n"
-                )
+                f.write(f"| {r['a']} | {r['b']} | {r['tca_utc']} | {r['dca_km']:.3f} | {r['vrel_kms']:.3f} | "
+                        f"[PNG]({r['distance_plot']}) | [HTML]({r['rel3d_html']}) |\n")
 
-        # Clear disclaimer about modeling limitations to avoid misuse.
-        f.write("\n\n_Disclaimer:_ TLE+SGP4, no covariance; figures are illustrative only.\n")
+        # --- DV suggestions section (optional) ---
+        if dv_df is not None and not dv_df.empty:
+            f.write("\n\n## Δv suggestions (toy along-track heuristic)\n")
+            f.write("_Assumes Δs≈Δv·Δt from a single pro/retro burn at the plan time; no covariance / J2 / RAAN constraints._\n\n")
+            f.write("| Pair | Actor | Plan time (UTC) | TCA (UTC) | Δt (s) | Target DCA (km) | Suggested Δv (m/s) | Achieved DCA (km) |\n")
+            f.write("|------|-------|------------------|-----------|-------:|----------------:|--------------------:|------------------:|\n")
+            for _, r in dv_df.iterrows():
+                pair = f"{str(r['a']).strip()} vs {str(r['b']).strip()}"
+                f.write(f"| {pair} | {r['actor']} | {r['t_plan_utc']} | {r['tca_utc']} | {float(r['dt_to_tca_s']):.1f} | "
+                        f"{float(r['target_dca_km']):.2f} | {float(r['suggested_dv_mps']):.3f} | {float(r['achieved_dca_km']):.3f} |\n")
 
     # Return path to the Markdown report (primary human artifact).
     return mpath

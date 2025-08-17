@@ -99,7 +99,18 @@ def cmd_report(args):
     refined_csv = outdir / "refined.csv"
     refined.to_csv(refined_csv, index=False)
 
-    mpath = build_report(states, refined, outdir=outdir, half_steps=args.half_steps)
+    dv_df = None
+    if refined is not None and not refined.empty and (args.dv_target_km is not None):
+        plan_time = args.dv_plan_time or args.start
+        dv_df = plan_dv_for_refined(
+            refined, plan_time_iso=plan_time,
+            target_dca_km=args.dv_target_km, max_dv_mps=args.dv_max_mps
+        )
+        dv_csv = outdir / "dv_suggestions.csv"
+        dv_df.to_csv(dv_csv, index=False)
+    
+    mpath = build_report(states, refined, outdir=outdir, half_steps=args.half_steps, dv_df=dv_df)
+
     print(f"Report written: {mpath}")
 
 def cmd_fetch(args):
@@ -201,6 +212,9 @@ def main():
     rep.add_argument("--half-steps", type=int, default=10, help="Half window (steps) for distance plot & CSV window")
     rep.add_argument("--outdir", required=True, help="Output directory for artifacts")
     rep.add_argument("--sample", type=int, default=None, help="Randomly sample N satellites")
+    rep.add_argument("--dv-target-km", type=float, default=None, help="If set, include Δv suggestions targeting this DCA (km)")
+    rep.add_argument("--dv-max-mps", type=float, default=0.05, help="Max |Δv| (m/s) when generating suggestions")
+    rep.add_argument("--dv-plan-time", type=str, default=None, help="Plan time ISO (UTC) for Δv; default=start time")
     rep.set_defaults(func=cmd_report)
 
     # fetch
