@@ -96,21 +96,41 @@ def dist_time_plot(states: Dict[str, pd.DataFrame], a: str, b: str, idx_hint: in
 
     # Create interactive figure
     fig = go.Figure()
-    fig.add_trace(go.Scatter(x=s.index, y=s.values, mode="lines", name="Distance (km)"))
+    # Make the line a bit thicker for readability in the PNG export
+    fig.add_trace(go.Scatter(x=s.index, y=s.values, mode="lines", name="Distance (km)", line=dict(width=3)))
 
     # Highlight the coarse minimum distance in the window
     j = int(np.nanargmin(s.values))
     t_min = s.index[j]
     d_min = float(s.values[j])
-    fig.add_trace(go.Scatter(x=[t_min], y=[d_min], mode="markers", name="Grid min"))
+    fig.add_trace(go.Scatter(
+                x=[t_min], y=[d_min],
+                mode="markers",
+                name=f"Grid min<br>{t_min.strftime('%Y-%m-%d %H:%M:%S')}"
+            ))
 
-    # Style axes and layout
+    # Style axes and layout: larger fonts for axes and legend
     fig.update_layout(
-        title=f"Separation vs Time — {a} vs {b}",
+        title = f"Separation vs Time — {a.strip()} vs {b.strip()}",
         xaxis_title="Time (UTC)",
         yaxis_title="Separation (km)",
-        margin=dict(l=50, r=20, t=60, b=50),
+        margin=dict(l=75, r=30, t=90, b=75),
+        font=dict(size=16),  # global font bump
+        legend=dict(font=dict(size=14))  # legend font bump
     )
+    fig.update_xaxes(
+    tickfont=dict(size=12),
+    title_font=dict(size=14),
+    title_standoff=25   # push x-axis title further away
+    )
+    fig.update_yaxes(
+        tickfont=dict(size=12),
+        title_font=dict(size=14),
+        title_standoff=30   # push y-axis title further away
+    )
+    # Also bump tick label sizes explicitly
+    fig.update_xaxes(tickfont=dict(size=14), title_font=dict(size=14))
+    fig.update_yaxes(tickfont=dict(size=14), title_font=dict(size=14))
 
     # Save to PNG file
     fname = outdir / f"dist_{_safe_name(a)}__{_safe_name(b)}.png"
@@ -152,15 +172,24 @@ def rel3d_html(states: Dict[str, pd.DataFrame], a: str, b: str, idx_hint: int, o
     rz = dfw_a["rz_km"].to_numpy() - dfw_b["rz_km"].to_numpy()
 
     # 3D line plot of relative trajectory in TEME frame
-    fig = go.Figure(data=[go.Scatter3d(x=rx, y=ry, z=rz, mode="lines", name="Rel traj")])
+    fig = go.Figure()
+    fig.add_trace(go.Scatter3d(
+        x=rx, y=ry, z=rz,
+        mode="lines",
+        name="Relative trajectory",
+        line=dict(width=4, color="navy")  # thicker + navy for HTML
+    ))
+
+    # Style: larger fonts, legend, and title
     fig.update_layout(
-        title=f"Relative trajectory (ECI/TEME) — {a} vs {b}",
-        scene=dict(xaxis_title="x (km)", yaxis_title="y (km)", zaxis_title="z (km)"),
-        margin=dict(l=20, r=20, t=60, b=20),
+        title=f"Relative trajectory (TEME) — {a.strip()} vs {b.strip()}",
+        font=dict(size=14),
+        legend=dict(font=dict(size=14))
     )
 
     # Save to interactive HTML file (self-contained with CDN JS)
     fname = outdir / f"rel3d_{_safe_name(a)}__{_safe_name(b)}.html"
     fig.write_html(str(fname), include_plotlyjs="cdn")
     return fname
+
 
