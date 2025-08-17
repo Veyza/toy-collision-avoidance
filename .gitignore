@@ -1,0 +1,22 @@
+# Python
+__pycache__/
+*.pyc
+.venv/
+.env
+
+# Build / reports
+artifacts/
+*.egg-info/
+dist/
+build/
+
+# Jupyter
+.ipynb_checkpoints/
+
+# OS (for possible re-runs on Mac and Windows)
+.DS_Store
+Thumbs.db
+
+# Cache
+data/cache/
+
