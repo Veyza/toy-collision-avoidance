@@ -3,7 +3,7 @@ from pathlib import Path
 
 from .config import Defaults
 from .timeutil import parse_iso_utc
-from .tle_io import load_tles
+from .tle_io import load_tles, fetch_celestrak_group, save_text
 from .propagate import propagate_group
 from .screening import coarse_screen
 from .refine import refine_candidates
@@ -73,6 +73,11 @@ def cmd_report(args):
     mpath = build_report(states, refined, outdir=outdir, half_steps=args.half_steps)
     print(f"Report written: {mpath}")
 
+def cmd_fetch(args):
+    txt = fetch_celestrak_group(args.group)
+    save_text(txt, args.out)
+    print(f"Saved {args.group} TLEs to {args.out}")
+
 
 def main():
     parser = argparse.ArgumentParser(
@@ -126,6 +131,13 @@ def main():
     rep.add_argument("--half-steps", type=int, default=10)
     rep.add_argument("--outdir", required=True)
     rep.set_defaults(func=cmd_report)
+    
+    # fetch
+    f = sub.add_parser("fetch", help="Download TLEs for a Celestrak GROUP into a file")
+    f.add_argument("--group", required=True, help="Celestrak group name (e.g., starlink, oneweb, iridium, active)")
+    f.add_argument("--out", required=True, help="Path to write TLEs (e.g., data/starlink.tle)")
+    f.set_defaults(func=cmd_fetch)
+
 
     args = parser.parse_args()
 

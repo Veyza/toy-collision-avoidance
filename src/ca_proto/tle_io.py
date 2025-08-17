@@ -68,4 +68,25 @@ def load_tles(path_or_str: str) -> pd.DataFrame:
         raise ValueError("No valid TLEs parsed")
 
     return df
+    
+    
+import requests
+from datetime import datetime
+
+CELESTRAK_TLE_URL = "https://celestrak.org/NORAD/elements/gp.php"
+
+def fetch_celestrak_group(group: str) -> str:
+    """
+    Download a 2-line TLE text for a Celestrak GROUP (e.g., 'starlink','oneweb','active').
+    Returns the raw text. Caller should save to disk.
+    """
+    params = {"GROUP": group, "FORMAT": "tle"}
+    r = requests.get(CELESTRAK_TLE_URL, params=params, timeout=30)
+    r.raise_for_status()
+    return r.text
+
+def save_text(text: str, out_path: str) -> None:
+    Path(out_path).parent.mkdir(parents=True, exist_ok=True)
+    Path(out_path).write_text(text)
+
 
