@@ -36,7 +36,8 @@ def coarse_screen(states: Dict[str, pd.DataFrame], screen_km: float) -> pd.DataF
 
     # Compute minimum distance for every unordered pair of satellites
     tuples: List[Tuple[str, str, float, int]] = pairwise_min_distance(names, R)
-
+    cols = ["a", "b", "dmin_km", "t_index", "time_utc"]
+    
     # If no valid pairs were found, return an empty DataFrame with the right columns
     if not tuples:
         return pd.DataFrame(columns=["a", "b", "dmin_km", "t_index", "time_utc"])
@@ -52,7 +53,9 @@ def coarse_screen(states: Dict[str, pd.DataFrame], screen_km: float) -> pd.DataF
                 "t_index": int(idx),          # index of timestep in the time grid
                 "time_utc": times[idx].isoformat()  # ISO UTC string of that timestep
             })
-
+    # If no pairs pass the screen_km threshold, returns an empty DataFrame with the expected columns. 
+    if not rows:
+        return pd.DataFrame(columns=cols)
     # Build final DataFrame, sort by distance then by names, reset row indices
     df = pd.DataFrame(rows).sort_values(["dmin_km", "a", "b"]).reset_index(drop=True)
     return df
