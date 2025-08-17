@@ -89,4 +89,9 @@ def save_text(text: str, out_path: str) -> None:
     Path(out_path).parent.mkdir(parents=True, exist_ok=True)
     Path(out_path).write_text(text)
 
+def sample_tles(df, n: int, seed: int = 42):
+    if len(df) <= n:
+        return df
+    return df.sample(n=n, random_state=seed).reset_index(drop=True)
+
 

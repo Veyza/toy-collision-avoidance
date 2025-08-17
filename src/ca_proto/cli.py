@@ -16,6 +16,9 @@ def cmd_propagate(args):
     _ = parse_iso_utc(args.start); _ = parse_iso_utc(args.end)
 
     tles = load_tles(args.tles)
+    if getattr(args, "sample", None):
+        tles = sample_tles(tles, args.sample)
+
     states = propagate_group(tles, args.start, args.end, step_s=args.step)
     for name, df in states.items():
         safe = name.replace(" ", "_").replace("/", "_")
@@ -25,6 +28,8 @@ def cmd_propagate(args):
 
 def cmd_screen(args):
     tles = load_tles(args.tles)
+    if getattr(args, "sample", None):
+        tles = sample_tles(tles, args.sample)
     states = propagate_group(tles, args.start, args.end, step_s=args.step)
     df = coarse_screen(states, screen_km=args.screen_km)
     out_csv = Path(args.out)
@@ -36,6 +41,8 @@ def cmd_screen(args):
 def cmd_refine(args):
     import pandas as pd
     tles = load_tles(args.tles)
+    if getattr(args, "sample", None):
+        tles = sample_tles(tles, args.sample)
     states = propagate_group(tles, args.start, args.end, step_s=args.step)
 
     coarse = coarse_screen(states, screen_km=args.screen_km)
@@ -58,6 +65,8 @@ def cmd_report(args):
     _ = parse_iso_utc(args.start); _ = parse_iso_utc(args.end)
 
     tles = load_tles(args.tles)
+    if getattr(args, "sample", None):
+        tles = sample_tles(tles, args.sample)
     states = propagate_group(tles, args.start, args.end, step_s=args.step)
     coarse = coarse_screen(states, screen_km=args.screen_km)
 
@@ -90,6 +99,7 @@ def main():
 
     # propagate
     p = sub.add_parser("propagate", help="Propagate TLEs and write CSVs")
+    p.add_argument("--sample", type=int, default=None, help="Randomly sample N satellites from the TLE file")
     p.add_argument("--tles", required=True)
     p.add_argument("--start", required=True)
     p.add_argument("--end", required=True)
@@ -101,6 +111,7 @@ def main():
     s = sub.add_parser("screen", help="Propagate & coarse-screen")
     s.add_argument("--tles", required=True)
     s.add_argument("--start", required=True)
+    s.add_argument("--sample", type=int, default=None, help="Randomly sample N satellites from the TLE file")
     s.add_argument("--end", required=True)
     s.add_argument("--step", type=float, default=Defaults.step_s)
     s.add_argument("--screen-km", type=float, default=10.0)
@@ -111,6 +122,7 @@ def main():
     r = sub.add_parser("refine", help="Propagate, coarse-screen, then refine")
     r.add_argument("--tles", required=True)
     r.add_argument("--start", required=True)
+    r.add_argument("--sample", type=int, default=None, help="Randomly sample N satellites from the TLE file")
     r.add_argument("--end", required=True)
     r.add_argument("--step", type=float, default=Defaults.step_s)
     r.add_argument("--screen-km", type=float, default=10.0)
@@ -124,6 +136,7 @@ def main():
     rep.add_argument("--tles", required=True)
     rep.add_argument("--start", required=True)
     rep.add_argument("--end", required=True)
+    rep.add_argument("--sample", type=int, default=None, help="Randomly sample N satellites from the TLE file")
     rep.add_argument("--step", type=float, default=Defaults.step_s)
     rep.add_argument("--screen-km", type=float, default=10.0)
     rep.add_argument("--window", type=int, default=3)
@@ -136,6 +149,7 @@ def main():
     f = sub.add_parser("fetch", help="Download TLEs for a Celestrak GROUP into a file")
     f.add_argument("--group", required=True, help="Celestrak group name (e.g., starlink, oneweb, iridium, active)")
     f.add_argument("--out", required=True, help="Path to write TLEs (e.g., data/starlink.tle)")
+    f.add_argument("--sample", type=int, default=None, help="Randomly sample N satellites from the TLE file")
     f.set_defaults(func=cmd_fetch)
 
 
