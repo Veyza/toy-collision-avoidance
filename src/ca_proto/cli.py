@@ -1,19 +1,30 @@
+# at top with other imports
 import argparse
+from argparse import ArgumentDefaultsHelpFormatter
 from pathlib import Path
 
+from . import get_version
 from .config import Defaults
 from .timeutil import parse_iso_utc
-from .tle_io import (
-    load_tles,
-    fetch_celestrak_group,
-    save_text,
-    sample_tles,   # ← this must be present
-)
+from .tle_io import load_tles, fetch_celestrak_group, save_text, sample_tles
 from .propagate import propagate_group
 from .screening import coarse_screen
 from .refine import refine_candidates
 from .reporting import build_report
 from .dashboard import run_dashboard
+
+def _parse_window_or_die(start: str, end: str) -> None:
+    """
+    Validate start/end ISO strings and ensure end > start; exit with a friendly message if invalid.
+    """
+    try:
+        t0 = parse_iso_utc(start)
+        t1 = parse_iso_utc(end)
+    except Exception as e:
+        raise SystemExit(f"Invalid date format. Use ISO UTC like 2025-08-17T00:00:00Z. Details: {e}")
+    if t1 <= t0:
+        raise SystemExit("Invalid window: --end must be after --start.")
+
 
 
 
@@ -100,86 +111,108 @@ def cmd_dashboard(args):
 
 
 def main():
+    examples = """Examples:
+  # Propagate and write per-satellite CSV states
+  ca_proto propagate --tles data/starlink.tle --start 2025-08-17T00:00:00Z --end 2025-08-17T01:00:00Z --out artifacts/prop
+
+  # Coarse screen for pairs under 150 km and write candidates.csv
+  ca_proto screen --tles data/starlink.tle --sample 120 --start 2025-08-17T00:00:00Z --end 2025-08-17T02:00:00Z --screen-km 150 --out artifacts/candidates.csv
+
+  # Refine TCAs for those candidates
+  ca_proto refine --tles data/starlink.tle --sample 120 --start 2025-08-17T00:00:00Z --end 2025-08-17T02:00:00Z --out artifacts/refined.csv
+
+  # Full report + figures + html
+  ca_proto report --tles data/starlink.tle --sample 120 --start 2025-08-17T00:00:00Z --end 2025-08-17T02:00:00Z --outdir artifacts/demo
+
+  # Launch dashboard on an artifacts folder
+  ca_proto dashboard --artifacts artifacts/demo
+"""
     parser = argparse.ArgumentParser(
         prog="ca_proto",
-        description="Collision Avoidance Prototype — CLI"
+        description="Collision Avoidance Prototype — TLE/SGP4 screening, refinement, plots & dashboard",
+        epilog=examples,
+        formatter_class=ArgumentDefaultsHelpFormatter,
     )
-    sub = parser.add_subparsers(dest="cmd", required=False)
+    sub = parser.add_subparsers(dest="cmd", metavar="{propagate,screen,refine,report,fetch,dashboard}")
 
-    parser.add_argument("--version", action="store_true", help="Show version and exit")
+    parser.add_argument("--version", action="store_true", help="Show installed version and exit")
 
     # propagate
-    p = sub.add_parser("propagate", help="Propagate TLEs and write CSVs")
-    p.add_argument("--sample", type=int, default=None, help="Randomly sample N satellites from the TLE file")
-    p.add_argument("--tles", required=True)
-    p.add_argument("--start", required=True)
-    p.add_argument("--end", required=True)
-    p.add_argument("--step", type=float, default=Defaults.step_s)
-    p.add_argument("--out", required=True)
+    p = sub.add_parser("propagate", help="Propagate TLEs and write per-satellite CSV states", formatter_class=ArgumentDefaultsHelpFormatter)
+    p.add_argument("--tles", required=True, help="Path to TLE file")
+    p.add_argument("--start", required=True, help="Start time ISO (UTC), e.g., 2025-08-17T00:00:00Z")
+    p.add_argument("--end", required=True, help="End time ISO (UTC)")
+    p.add_argument("--step", type=float, default=Defaults.step_s, help="Step in seconds")
+    p.add_argument("--out", required=True, help="Output directory")
+    p.add_argument("--sample", type=int, default=None, help="Randomly sample N satellites")
     p.set_defaults(func=cmd_propagate)
 
     # screen
-    s = sub.add_parser("screen", help="Propagate & coarse-screen")
+    s = sub.add_parser("screen", help="Propagate & coarse-screen pairs by min grid distance", formatter_class=ArgumentDefaultsHelpFormatter)
     s.add_argument("--tles", required=True)
     s.add_argument("--start", required=True)
-    s.add_argument("--sample", type=int, default=None, help="Randomly sample N satellites from the TLE file")
     s.add_argument("--end", required=True)
     s.add_argument("--step", type=float, default=Defaults.step_s)
-    s.add_argument("--screen-km", type=float, default=10.0)
-    s.add_argument("--out", required=True)
+    s.add_argument("--screen-km", type=float, default=10.0, help="Keep pairs with dmin < screen-km")
+    s.add_argument("--out", required=True, help="Output CSV path for candidates")
+    s.add_argument("--sample", type=int, default=None, help="Randomly sample N satellites")
     s.set_defaults(func=cmd_screen)
 
     # refine
-    r = sub.add_parser("refine", help="Propagate, coarse-screen, then refine")
+    r = sub.add_parser("refine", help="Propagate, coarse-screen, then refine TCA locally", formatter_class=ArgumentDefaultsHelpFormatter)
     r.add_argument("--tles", required=True)
     r.add_argument("--start", required=True)
-    r.add_argument("--sample", type=int, default=None, help="Randomly sample N satellites from the TLE file")
     r.add_argument("--end", required=True)
     r.add_argument("--step", type=float, default=Defaults.step_s)
     r.add_argument("--screen-km", type=float, default=10.0)
-    r.add_argument("--window", type=int, default=3)
-    r.add_argument("--upsample", type=int, default=10)
-    r.add_argument("--out", required=True)
+    r.add_argument("--window", type=int, default=3, help="Half-width (steps) around coarse min")
+    r.add_argument("--upsample", type=int, default=10, help="Temporal upsample factor inside window")
+    r.add_argument("--out", required=True, help="Output CSV path for refined results")
+    r.add_argument("--sample", type=int, default=None, help="Randomly sample N satellites")
     r.set_defaults(func=cmd_refine)
 
     # report
-    rep = sub.add_parser("report", help="Propagate, screen, refine, and build a report with plots")
+    rep = sub.add_parser("report", help="Full pipeline: screen, refine, plots, markdown/json", formatter_class=ArgumentDefaultsHelpFormatter)
     rep.add_argument("--tles", required=True)
     rep.add_argument("--start", required=True)
     rep.add_argument("--end", required=True)
-    rep.add_argument("--sample", type=int, default=None, help="Randomly sample N satellites from the TLE file")
     rep.add_argument("--step", type=float, default=Defaults.step_s)
     rep.add_argument("--screen-km", type=float, default=10.0)
     rep.add_argument("--window", type=int, default=3)
     rep.add_argument("--upsample", type=int, default=10)
-    rep.add_argument("--half-steps", type=int, default=10)
-    rep.add_argument("--outdir", required=True)
+    rep.add_argument("--half-steps", type=int, default=10, help="Half window (steps) for distance plot & CSV window")
+    rep.add_argument("--outdir", required=True, help="Output directory for artifacts")
+    rep.add_argument("--sample", type=int, default=None, help="Randomly sample N satellites")
     rep.set_defaults(func=cmd_report)
-    
+
     # fetch
-    f = sub.add_parser("fetch", help="Download TLEs for a Celestrak GROUP into a file")
-    f.add_argument("--group", required=True, help="Celestrak group name (e.g., starlink, oneweb, iridium, active)")
+    f = sub.add_parser("fetch", help="Download TLEs for a Celestrak GROUP into a file", formatter_class=ArgumentDefaultsHelpFormatter)
+    f.add_argument("--group", required=True, help="Celestrak group (e.g., starlink, oneweb, active)")
     f.add_argument("--out", required=True, help="Path to write TLEs (e.g., data/starlink.tle)")
-    f.add_argument("--sample", type=int, default=None, help="Randomly sample N satellites from the TLE file")
     f.set_defaults(func=cmd_fetch)
-    
-    dashp = sub.add_parser("dashboard", help="Launch a local dashboard for an artifacts directory")
-    dashp.add_argument("--artifacts", required=True, help="Path to artifacts directory (contains refined.csv)")
+
+    # dashboard
+    dashp = sub.add_parser("dashboard", help="Launch a local dashboard for an artifacts directory", formatter_class=ArgumentDefaultsHelpFormatter)
+    dashp.add_argument("--artifacts", required=True, help="Path to artifacts directory (must contain refined.csv)")
     dashp.add_argument("--host", default="127.0.0.1")
     dashp.add_argument("--port", type=int, default=8050)
     dashp.set_defaults(func=cmd_dashboard)
 
-
     args = parser.parse_args()
 
     if args.version:
-        print("ca_proto 0.0.1 (Hour 5)")
+        print(f"ca_proto {get_version()}")
         return
+
+    # If a subcommand needs times, validate them early for friendlier errors
+    if getattr(args, "start", None) and getattr(args, "end", None):
+        _parse_window_or_die(args.start, args.end)
 
     if hasattr(args, "func"):
         args.func(args)
     else:
         parser.print_help()
+
 
 
 if __name__ == "__main__":

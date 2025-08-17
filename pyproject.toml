@@ -2,9 +2,11 @@
 requires = ["setuptools>=61"]
 build-backend = "setuptools.build_meta"
 
+# pyproject.toml
 [project]
 name = "ca-proto"
-version = "0.0.1"
+version = "0.1.0"
+
 description = "Toy collision avoidance prototype"
 readme = "README.md"
 requires-python = ">=3.10"
