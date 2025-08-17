@@ -6,6 +6,7 @@ from .timeutil import parse_iso_utc
 from .config import Defaults
 from .screening import coarse_screen
 from .refine import refine_candidates
+from .reporting import build_report
 
 def main():
     parser = argparse.ArgumentParser(
@@ -46,6 +47,18 @@ def main():
     r.add_argument("--upsample", type=int, default=10, help="Temporal upsample factor within window")
     r.add_argument("--out", required=True, help="Output CSV path for refined results")
     r.set_defaults(func=cmd_refine)
+
+    rep = sub.add_parser("report", help="Propagate, screen, refine, and build a full report with plots")
+    rep.add_argument("--tles", required=True, help="Path to TLE file")
+    rep.add_argument("--start", required=True, help="Start time ISO, e.g. 2025-08-16T00:00:00Z")
+    rep.add_argument("--end", required=True, help="End time ISO")
+    rep.add_argument("--step", type=float, default=Defaults.step_s, help="Step in seconds")
+    rep.add_argument("--screen-km", type=float, default=10.0, help="Coarse screening threshold (km)")
+    rep.add_argument("--window", type=int, default=3, help="Coarse window half-width (steps) around min for refinement")
+    rep.add_argument("--upsample", type=int, default=10, help="Temporal upsample factor within window for refinement")
+    rep.add_argument("--half-steps", type=int, default=10, help="Half window (steps) for distance plot")
+    rep.add_argument("--outdir", required=True, help="Output directory for artifacts")
+    rep.set_defaults(func=cmd_report)
 
     if args.version:
         print("ca_proto 0.0.1")
@@ -97,6 +110,29 @@ def cmd_refine(args):
     out_csv.parent.mkdir(parents=True, exist_ok=True)
     out.to_csv(out_csv, index=False)
     print(f"Wrote refined results for {len(out)} pair(s) to {out_csv}")
+
+def cmd_report(args):
+    outdir = Path(args.outdir)
+    outdir.mkdir(parents=True, exist_ok=True)
+    # sanity parse for early failure if bad ISO
+    _ = parse_iso_utc(args.start); _ = parse_iso_utc(args.end)
+
+    tles = load_tles(args.tles)
+    states = propagate_group(tles, args.start, args.end, step_s=args.step)
+    coarse = coarse_screen(states, screen_km=args.screen_km)
+
+    if coarse.empty:
+        import pandas as pd
+        refined = pd.DataFrame(columns=["a","b","t_index","t_idx_refined","tca_utc","dca_km","vrel_kms"])
+    else:
+        refined = refine_candidates(states, coarse, window=args.window, upsample=args.upsample)
+
+    # write a copy of refined CSV for convenience
+    refined_csv = outdir / "refined.csv"
+    refined.to_csv(refined_csv, index=False)
+
+    mpath = build_report(states, refined, outdir=outdir, half_steps=args.half_steps)
+    print(f"Report written: {mpath}")
     
 if __name__ == "__main__":
     main()
